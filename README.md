@@ -5,6 +5,7 @@ Android权限控制，通过Aop切面，减少代码侵入，权限申请简洁�
 该库使用范围：在Activity及Fragment中申明权限。（支持Androidx）
 该库必须配合 [aspectjx](https://github.com/HujiangTechnology/gradle_plugin_android_aspectjx) 使用。
 ## 快速集成
+ ```implementation 'com.aoomeo.android:permissionaop:0.0.1'```
 * 项目**根目录**添加 
   ```  
   dependencies {
