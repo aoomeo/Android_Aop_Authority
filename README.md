@@ -13,11 +13,7 @@ Android权限控制，通过Aop切面，减少代码侵入，权限申请简洁�
   ```
 * **app中的 build.gradle** 添加
   ```
-  apply plugin: 'com.hujiang.android-aspectjx'
-  
-  dependencies {
-      implementation 'org.aspectj:aspectjrt:1.8.+'
-  }
+  apply plugin: 'android-aspectjx'
   ```
 ## 使用方法
 在需要权限的方法前，加上
