@@ -36,7 +36,6 @@ public class PermissionHandler {
 
     @Pointcut("this(android.app.Activity)") //this(Type) : 判断该JoinPoint所在的类是否是Type类型
     public void isActivity() {
-        Log.d(TAG, "isActivity");
     }
 
     @Pointcut("this(android.support.v4.app.Fragment) || this(android.app.Fragment) || this(androidx.fragment.app.Fragment)")
