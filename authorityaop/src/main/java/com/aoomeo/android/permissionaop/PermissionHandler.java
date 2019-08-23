@@ -11,24 +11,23 @@ import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
 import android.provider.Settings;
-import androidx.core.app.ActivityCompat;
-import androidx.fragment.app.FragmentActivity;
 import android.util.Log;
+
 import org.aspectj.lang.JoinPoint;
 import org.aspectj.lang.ProceedingJoinPoint;
-import org.aspectj.lang.annotation.After;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
+import org.aspectj.lang.annotation.Before;
 import org.aspectj.lang.annotation.Pointcut;
 import org.aspectj.lang.reflect.MethodSignature;
 
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.List;
 
 @Aspect
 public class PermissionHandler {
-
     private final static String TAG = PermissionHandler.class.getSimpleName();
     private ProceedingJoinPoint pointMethod; //方法
     private RequirePermission aspectJAnnotation;
@@ -67,7 +66,6 @@ public class PermissionHandler {
 
     @Around("(isActivity()||isFragment()) && isPermissionAnnotation()")
     public void aroundAspectJ(ProceedingJoinPoint joinPoint) throws Throwable {
-        Log.d("aroundAspectJ", "test");
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             MethodSignature methodSignature = (MethodSignature) joinPoint.getSignature();
             this.aspectJAnnotation = methodSignature.getMethod().getAnnotation(RequirePermission.class);
@@ -75,43 +73,49 @@ public class PermissionHandler {
             if (joinPoint.getTarget() instanceof Activity) {
                 activity = (Activity) joinPoint.getTarget();
             } else {
-                try {
-                    Method[] methods = joinPoint.getTarget().getClass().getMethods();
-                    Method getActivity = null;
-                    for (Method method : methods) {
-                        if (method.getName().equals("getActivity")) {
-                            getActivity = method;
-                        }
-                        Log.d(TAG, "methods: " + method.getName());
+                Method[] methods = joinPoint.getTarget().getClass().getMethods();
+                Method getActivity = null;
+                for (Method method : methods) {
+                    if (method.getName().equals("getActivity")) {
+                        getActivity = method;
                     }
-                    if (getActivity == null) {
-                        throw new Exception("no such getActivity");
-                    }
-                    activity = (FragmentActivity) getActivity.invoke(joinPoint.getTarget());
-                } catch (Exception e) {
-                    throw new IllegalArgumentException("@RequirePermission must be used in Activity or Fragment");
                 }
+                if (getActivity == null) {
+                    throw new Exception("no such function getActivity");
+                }
+                activity = (Activity) getActivity.invoke(joinPoint.getTarget());
             }
             if (checkPermissionHandler(activity, aspectJAnnotation.permissions())) { //有权限时，直接执行这段代码
                 joinPoint.proceed();
             } else {
-                this.pointMethod = joinPoint; //无权限时，将切点代码保存，开启一个新的Activity
-                Intent intent = new Intent();
-                intent.setClass(activity, PermissionAopActivity.class);
-                activity.startActivity(intent);
+                this.pointMethod = joinPoint;
+                queryPermissions(activity);
             }
         } else {
             joinPoint.proceed();
         }
     }
 
-    @After("execution(* com.aoomeo.android.permissionaop.PermissionAopActivity.onCreate(..))")
-    public void onPermissionActivityCreate(JoinPoint joinPoint) throws Throwable { //使用新的Activity去请求权限
-        ActivityCompat.requestPermissions((Activity) joinPoint.getTarget(), aspectJAnnotation.permissions(), REQUEST_PERMISSION_CODE);
+    private void queryPermissions(Activity activity) {
+        try {
+            Class activityCompat = Class.forName("android.support.v4.app.ActivityCompat");
+            Method requestPermissions = activityCompat.getDeclaredMethod("requestPermissions", Activity.class, String[].class, int.class);
+            requestPermissions.invoke(activityCompat, activity, aspectJAnnotation.permissions(), REQUEST_PERMISSION_CODE);
+        } catch (InvocationTargetException | NoSuchMethodException | IllegalAccessException | ClassNotFoundException e) {
+            Log.e(TAG, e.getMessage());
+        }
+
+        try {
+            Class activityCompat = Class.forName("androidx.core.app.ActivityCompat");
+            Method requestPermissions = activityCompat.getDeclaredMethod("requestPermissions", Activity.class, String[].class, int.class);
+            requestPermissions.invoke(activityCompat, activity, aspectJAnnotation.permissions(), REQUEST_PERMISSION_CODE);
+        } catch (InvocationTargetException | NoSuchMethodException | IllegalAccessException | ClassNotFoundException e) {
+            Log.e(TAG, e.getMessage());
+        }
     }
 
     @TargetApi(Build.VERSION_CODES.M)
-    @Around("execution(* com.aoomeo.android.permissionaop.PermissionAopActivity.onRequestPermissionsResult(..))")
+    @Around("execution(* *.onRequestPermissionsResult(..))")
     public void onRequestPermissionsResult(final JoinPoint joinPoint) throws Throwable {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             Object[] objects = joinPoint.getArgs();
@@ -127,7 +131,6 @@ public class PermissionHandler {
                     }
                 }
                 if (isPermissionsGranted) {
-                    activity.finish();
                     permissionGranted();
                     return;
                 } else {
@@ -147,7 +150,6 @@ public class PermissionHandler {
                                         @Override
                                         public void onClick(DialogInterface dialog, int which) {
                                             dialog.dismiss();
-                                            activity.finish();
                                             permissionRefused();
                                         }
                                     }).setPositiveButton(aspectJAnnotation.dialogSureText(), new DialogInterface.OnClickListener() {
@@ -160,7 +162,6 @@ public class PermissionHandler {
                             alertDialog.show();
                             break;
                         } else {
-                            activity.finish();
                             permissionRefused();
                         }
                     }
@@ -168,25 +169,19 @@ public class PermissionHandler {
                 return;
             }
         }
-        ((Activity) joinPoint.getTarget()).finish();
         permissionGranted();
     }
 
-    @Around("execution(*  com.aoomeo.android.permissionaop.PermissionAopActivity.onActivityResult(..))")
-    public void onActivityResult(ProceedingJoinPoint proceedingJoinPoint) throws Throwable {
-        Object[] objects = proceedingJoinPoint.getArgs();
+    @Before("execution(*  *.onActivityResult(..))")
+    public void onActivityResult(JoinPoint joinPoint) throws Throwable {
+        Object[] objects = joinPoint.getArgs();
         int resultCode = (int) objects[0];
         if (resultCode == REQUEST_SETTING_CALL_BACK_CODE) {
-            final Activity activity = (Activity) proceedingJoinPoint.getTarget();
-            if (checkPermissionHandler((Activity) proceedingJoinPoint.getTarget(), aspectJAnnotation.permissions())) {
+            if (checkPermissionHandler((Activity) joinPoint.getTarget(), aspectJAnnotation.permissions())) {
                 permissionGranted();
-                activity.finish();
             } else {
                 permissionRefusedBySetting();
-                activity.finish();
             }
-        } else {
-            proceedingJoinPoint.proceed();
         }
     }
 
@@ -213,11 +208,32 @@ public class PermissionHandler {
     }
 
     // 循环遍历查看权限数组
-    private boolean checkPermissionHandler(Context context, String... permissions) {
-        List<String> permissionList = Arrays.asList(permissions);
-        for (String permission : permissionList) {
-            if (ActivityCompat.checkSelfPermission(context, permission) != PackageManager.PERMISSION_GRANTED) {
-                return false;
+    private boolean checkPermissionHandler(Activity activity, String... permissions) {
+        Class activityCompat = null;
+        Method checkSelfPermissionMethod = null;
+        try {
+            activityCompat = Class.forName("android.support.v4.app.ActivityCompat");
+            checkSelfPermissionMethod = activityCompat.getMethod("checkSelfPermission", Context.class, String.class);
+        } catch (ClassNotFoundException | NoSuchMethodException e) {
+            Log.e(TAG, e.getMessage());
+        }
+        try {
+            activityCompat = Class.forName("androidx.core.app.ActivityCompat");
+            checkSelfPermissionMethod = activityCompat.getMethod("checkSelfPermission", Context.class, String.class);
+        } catch (ClassNotFoundException | NoSuchMethodException e) {
+            Log.e(TAG, e.getMessage());
+        }
+        if (activityCompat != null && checkSelfPermissionMethod != null) {
+            List<String> permissionList = Arrays.asList(permissions);
+            for (String permission : permissionList) {
+                try {
+                    int permissionStatus = (Integer) checkSelfPermissionMethod.invoke(activityCompat, activity, permission);
+                    if (permissionStatus != PackageManager.PERMISSION_GRANTED) {
+                        return false;
+                    }
+                } catch (IllegalAccessException | InvocationTargetException e) {
+                    e.printStackTrace();
+                }
             }
         }
         return true;

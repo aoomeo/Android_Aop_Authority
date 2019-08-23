@@ -3,8 +3,5 @@
 
     <application>
 
-        <activity android:name=".PermissionAopActivity"
-                  android:theme="@style/permissionActivity"/>
-
     </application>
 </manifest>
