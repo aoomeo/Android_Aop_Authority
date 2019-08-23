@@ -1,11 +1,15 @@
-# Android_Aop_Authority v1.0
+# Android_Aop_Authority v0.0.3
 Android权限控制，通过Aop切面，减少代码侵入，权限申请简洁明了。
 后续会增加一些定制化的功能，开放如当用户勾选不再提示时的回调处理。
 ## 使用说明
 该库使用范围：在Activity及Fragment中申明权限。（支持Androidx）
 该库必须配合 [aspectjx](https://github.com/HujiangTechnology/gradle_plugin_android_aspectjx) 使用。
+## 0.0.3版本更新说明
+* 优化了请求权限时，需跳到一个透明的Activity。（这种实现方式好像有点傻哦！！）
+* 通过反射，优化了对于Androidx库的依赖。（现在可以放心使用啦，不会强制引入Androidx）
+
 ## 快速集成
- ```implementation 'com.aoomeo.android:permissionaop:0.0.1'```
+ ```implementation 'com.aoomeo.android:permissionaop:0.0.3'```
 * 项目**根目录**添加 
   ```  
   dependencies {
