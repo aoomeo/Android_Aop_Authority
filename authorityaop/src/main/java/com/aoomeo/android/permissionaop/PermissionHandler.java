@@ -8,9 +8,11 @@ import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.graphics.Color;
 import android.net.Uri;
 import android.os.Build;
 import android.provider.Settings;
+import android.text.TextUtils;
 import android.util.Log;
 
 import org.aspectj.lang.JoinPoint;
@@ -127,24 +129,24 @@ public class PermissionHandler {
                     return;
                 } else {
                     for (String permission : Arrays.asList((String[]) objects[1])) {
-                        if (!activity.shouldShowRequestPermissionRationale(permission)) {
+                        if (!activity.shouldShowRequestPermissionRationale(permission) && !handlePermissionForbidden()) {
                             int length = aspectJAnnotation.tips().length;
-                            StringBuilder messageBuilder = new StringBuilder("");
+                            StringBuilder messageBuilder = new StringBuilder();
                             if (length > 0) {
                                 for (int i = 0; i < length; i++) {
                                     messageBuilder.append(aspectJAnnotation.tips()[i]);
                                 }
                             }
                             AlertDialog alertDialog = new AlertDialog.Builder((Context) joinPoint.getTarget())
-                                    .setTitle(aspectJAnnotation.dialogTitle())
+                                    .setTitle(aspectJAnnotation.title())
                                     .setMessage(messageBuilder.toString())
-                                    .setNegativeButton(aspectJAnnotation.dialogCancelText(), new DialogInterface.OnClickListener() {
+                                    .setNegativeButton(aspectJAnnotation.negativeText(), new DialogInterface.OnClickListener() {
                                         @Override
                                         public void onClick(DialogInterface dialog, int which) {
                                             dialog.dismiss();
                                             permissionRefused();
                                         }
-                                    }).setPositiveButton(aspectJAnnotation.dialogSureText(), new DialogInterface.OnClickListener() {
+                                    }).setPositiveButton(aspectJAnnotation.positiveText(), new DialogInterface.OnClickListener() {
                                         @Override
                                         public void onClick(DialogInterface dialog, int which) {
                                             startAppSettings((Activity) joinPoint.getTarget());
@@ -152,6 +154,12 @@ public class PermissionHandler {
                                     }).create();
                             alertDialog.setCancelable(false);
                             alertDialog.show();
+                            if (!TextUtils.isEmpty(aspectJAnnotation.negativeTextColor())) {
+                                alertDialog.getButton(AlertDialog.BUTTON_NEGATIVE).setTextColor(Color.parseColor(aspectJAnnotation.negativeTextColor()));
+                            }
+                            if (!TextUtils.isEmpty(aspectJAnnotation.positiveTextColor())) {
+                                alertDialog.getButton(AlertDialog.BUTTON_POSITIVE).setTextColor(Color.parseColor(aspectJAnnotation.positiveTextColor()));
+                            }
                             break;
                         } else {
                             permissionRefused();
@@ -190,6 +198,14 @@ public class PermissionHandler {
                 && IPermissionRefuseListener.class.isAssignableFrom(pointMethod.getTarget().getClass())) {
             ((IPermissionRefuseListener) pointMethod.getTarget()).permissionRefused();
         }
+    }
+
+    private boolean handlePermissionForbidden() {
+        if (pointMethod != null && pointMethod.getTarget() != null
+                && IPermissionRefuseListener.class.isAssignableFrom(pointMethod.getTarget().getClass())) {
+            return ((IPermissionRefuseListener) pointMethod.getTarget()).permissionForbidden();
+        }
+        return false;
     }
 
     private void permissionRefusedBySetting() {

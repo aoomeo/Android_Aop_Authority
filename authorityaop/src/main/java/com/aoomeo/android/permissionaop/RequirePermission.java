@@ -10,11 +10,16 @@ import java.lang.annotation.Target;
 public @interface RequirePermission {
     String[] permissions();
 
-    String dialogCancelText() default "取消";
+    String negativeText() default "取消";
 
-    String dialogSureText() default "去设置";
+    String negativeTextColor() default "";
 
-    String dialogTitle() default "提示";
+    String positiveText() default "去设置";
+
+    String positiveTextColor() default "";
+
+    String title() default "提示";
 
     String[] tips() default {"当前操作缺少必要的权限。\n请点击\"设置\"-\"权限\"打开所需权限。"};
+
 }

@@ -11,6 +11,9 @@ import com.aoomeo.android.permissionaop.IPermissionRefuseListener
 import com.aoomeo.android.permissionaop.RequirePermission
 
 class TestFragment : BaseFragment(), IPermissionRefuseListener {
+    override fun permissionForbidden(): Boolean {
+        return false;
+    }
 
     override fun permissionRefused() {
         Toast.makeText(activity, "拒绝权限", Toast.LENGTH_SHORT).show()
@@ -33,7 +36,15 @@ class TestFragment : BaseFragment(), IPermissionRefuseListener {
         return view
     }
 
-    @RequirePermission(permissions = [Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.CAMERA])
+    @RequirePermission(
+        permissions = [Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.CAMERA],
+        negativeTextColor = "#FF0000",
+        positiveTextColor = "#ff0000",
+        negativeText = "别拒绝我",
+        positiveText = "开启更多体验",
+        title = "亲，你好",
+        tips = ["我需要这两个权限哦\n", "能不能为我开启这两个权限？"]
+    )
     fun test() {
         Toast.makeText(activity, "点击了TestFragment", Toast.LENGTH_SHORT).show()
     }

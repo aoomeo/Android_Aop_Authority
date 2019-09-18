@@ -10,6 +10,10 @@ import com.aoomeo.android.permissionaop.IPermissionRefuseListener
 import com.aoomeo.android.permissionaop.RequirePermission
 
 class MainActivity : AppCompatActivity(), IPermissionRefuseListener {
+    override fun permissionForbidden(): Boolean {
+        return false
+    }
+
     override fun permissionRefused() {
         Toast.makeText(this@MainActivity, "拒绝权限", Toast.LENGTH_SHORT).show()
     }
