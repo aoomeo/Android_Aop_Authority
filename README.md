@@ -26,3 +26,17 @@ Android权限控制，通过Aop切面，减少代码侵入，权限申请简洁�
 @RequirePermission(permissions = [Manifest.permission.ACCESS_FINE_LOCATION])
 ```
 如需处理拒绝回调，及设置页面返回拒绝回调，实现```IPermissionRefuseListener```即可
+
+## 混淆须知
+因为使用了反射来处理权限，所以对于一些源生类（Fragment & ActivityCompat）需要全部保留。
+```
+-keep class androidx.fragment.app.Fragment {*;}
+-keep class android.app.Fragment {*;}
+-keep class android.support.v4.app.Fragment {*;}
+
+-keep class android.support.v4.app.ActivityCompat {*;}
+-keep class androidx.core.app.ActivityCompat{*;}
+-keepclassmembers class * {
+    @com.aoomeo.android.permissionaop.RequirePermission <methods>;
+}
+```
