@@ -46,53 +46,45 @@ public class PermissionHandler {
     public void isPermissionAnnotation() {
     }
 
-    /**
-     * call 和 execution的区别
-     * call:
-     * | call before     |
-     * | Pointcut{       |
-     * | Pointcut Method |
-     * | }               |
-     * | call after      |
-     * <p>
-     * execution:
-     * | Pointcut{          |
-     * | execution before   |
-     * | Pointcut Method    |
-     * | execution.after  } |
-     **/
-
-
     @Around("(isActivity()||isFragment()) && isPermissionAnnotation()")
     public void aroundAspectJ(ProceedingJoinPoint joinPoint) throws Throwable {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             MethodSignature methodSignature = (MethodSignature) joinPoint.getSignature();
-            this.aspectJAnnotation = methodSignature.getMethod().getAnnotation(RequirePermission.class);
-            Activity activity;
-            if (joinPoint.getTarget() instanceof Activity) {
-                activity = (Activity) joinPoint.getTarget();
-            } else {
-                Method[] methods = joinPoint.getTarget().getClass().getMethods();
-                Method getActivity = null;
-                for (Method method : methods) {
-                    if (method.getName().equals("getActivity")) {
-                        getActivity = method;
+            String methodName = methodSignature.getName();
+            Class[] types = methodSignature.getParameterTypes();
+            try {
+                Method currentMethod = joinPoint.getTarget().getClass().getDeclaredMethod(methodName, types);
+                this.aspectJAnnotation = currentMethod.getAnnotation(RequirePermission.class);
+            } catch (NoSuchMethodException e) {
+                e.printStackTrace();
+            }
+            if (this.aspectJAnnotation != null) {
+                Activity activity;
+                if (joinPoint.getTarget() instanceof Activity) {
+                    activity = (Activity) joinPoint.getTarget();
+                } else {
+                    Method[] methods = joinPoint.getTarget().getClass().getMethods();
+                    Method getActivity = null;
+                    for (Method method : methods) {
+                        if (method.getName().equals("getActivity")) {
+                            getActivity = method;
+                        }
                     }
+                    if (getActivity == null) {
+                        throw new Exception("no such function getActivity");
+                    }
+                    activity = (Activity) getActivity.invoke(joinPoint.getTarget());
                 }
-                if (getActivity == null) {
-                    throw new Exception("no such function getActivity");
+                if (checkPermissionHandler(activity, aspectJAnnotation.permissions())) { //有权限时，直接执行这段代码
+                    joinPoint.proceed();
+                } else {
+                    this.pointMethod = joinPoint;
+                    queryPermissions(activity);
                 }
-                activity = (Activity) getActivity.invoke(joinPoint.getTarget());
+                return;
             }
-            if (checkPermissionHandler(activity, aspectJAnnotation.permissions())) { //有权限时，直接执行这段代码
-                joinPoint.proceed();
-            } else {
-                this.pointMethod = joinPoint;
-                queryPermissions(activity);
-            }
-        } else {
-            joinPoint.proceed();
         }
+        joinPoint.proceed();
     }
 
     private void queryPermissions(Activity activity) {
@@ -100,6 +92,7 @@ public class PermissionHandler {
             Class activityCompat = Class.forName("android.support.v4.app.ActivityCompat");
             Method requestPermissions = activityCompat.getDeclaredMethod("requestPermissions", Activity.class, String[].class, int.class);
             requestPermissions.invoke(activityCompat, activity, aspectJAnnotation.permissions(), REQUEST_PERMISSION_CODE);
+            return;
         } catch (InvocationTargetException | NoSuchMethodException | IllegalAccessException | ClassNotFoundException e) {
             Log.e(TAG, e.getMessage());
         }
@@ -210,17 +203,21 @@ public class PermissionHandler {
     private boolean checkPermissionHandler(Activity activity, String... permissions) {
         Class activityCompat = null;
         Method checkSelfPermissionMethod = null;
+        Boolean isChecked = false;
         try {
             activityCompat = Class.forName("android.support.v4.app.ActivityCompat");
             checkSelfPermissionMethod = activityCompat.getMethod("checkSelfPermission", Context.class, String.class);
+            isChecked = true;
         } catch (ClassNotFoundException | NoSuchMethodException e) {
             Log.e(TAG, e.getMessage());
         }
-        try {
-            activityCompat = Class.forName("androidx.core.app.ActivityCompat");
-            checkSelfPermissionMethod = activityCompat.getMethod("checkSelfPermission", Context.class, String.class);
-        } catch (ClassNotFoundException | NoSuchMethodException e) {
-            Log.e(TAG, e.getMessage());
+        if (!isChecked) {
+            try {
+                activityCompat = Class.forName("androidx.core.app.ActivityCompat");
+                checkSelfPermissionMethod = activityCompat.getMethod("checkSelfPermission", Context.class, String.class);
+            } catch (ClassNotFoundException | NoSuchMethodException e) {
+                Log.e(TAG, e.getMessage());
+            }
         }
         if (activityCompat != null && checkSelfPermissionMethod != null) {
             List<String> permissionList = Arrays.asList(permissions);
